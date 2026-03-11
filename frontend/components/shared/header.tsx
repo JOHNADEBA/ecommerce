@@ -2,12 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useUser, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
+import { useUser, SignInButton, SignUpButton, useClerk } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import {
   ShoppingCart,
   Menu,
-  X,
   Package,
   Grid,
   HelpCircle,
@@ -16,6 +15,8 @@ import {
   RotateCcw,
   Shield,
   Star,
+  LogOut,
+  User,
 } from "lucide-react";
 import { useCartStore } from "@/lib/store/cart-store";
 import { useEffect } from "react";
@@ -26,10 +27,17 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export function Header() {
   const [isOpen, setIsOpen] = useState(false);
-  const { isSignedIn } = useUser();
+  const { isSignedIn, user } = useUser();
+  const { signOut } = useClerk();
   const items = useCartStore((state) => state.items);
   const totalItems = useCartStore((state) => state.totalItems);
   const [itemCount, setItemCount] = useState(0);
@@ -39,6 +47,11 @@ export function Header() {
   }, [items, totalItems]);
 
   const closeMenu = () => setIsOpen(false);
+
+  const handleSignOut = async () => {
+    await signOut();
+    closeMenu();
+  };
 
   const NavLinks = [
     { href: "/products", label: "Products", icon: Package },
@@ -104,7 +117,25 @@ export function Header() {
                 </SignUpButton>
               </div>
             ) : (
-              <UserButton />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="rounded-full">
+                    <User className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem asChild>
+                    <Link href="/profile">Profile</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/orders">Orders</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleSignOut}>
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
 
@@ -121,10 +152,9 @@ export function Header() {
         </div>
       </div>
 
-      {/* Mobile Menu Sheet - Accessible version */}
+      {/* Mobile Menu Sheet */}
       <Sheet open={isOpen} onOpenChange={setIsOpen}>
         <SheetContent side="right" className="w-full sm:w-96 p-0">
-          {/* Hidden title for accessibility */}
           <VisuallyHidden>
             <SheetTitle>Navigation Menu</SheetTitle>
             <SheetDescription>
@@ -133,8 +163,8 @@ export function Header() {
           </VisuallyHidden>
 
           <div className="flex flex-col h-full">
-            {/* Header with OG-STORE branding */}
-            <div className="flex items-center justify-between p-6 border-b">
+            {/* Simple header with just logo - Sheet already has its own X button */}
+            <div className="p-6 border-b">
               <Link
                 href="/"
                 className="text-xl font-bold tracking-tight"
@@ -143,41 +173,6 @@ export function Header() {
                 <span className="text-primary">OG</span>
                 <span className="text-foreground">-STORE</span>
               </Link>
-            </div>
-
-            {/* User info / Auth section */}
-            <div className="p-6 bg-muted/30">
-              {!isSignedIn ? (
-                <div className="space-y-3">
-                  <p className="text-sm font-medium">Welcome to OG-STORE</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <SignInButton mode="modal">
-                      <Button className="w-full" onClick={closeMenu}>
-                        Sign In
-                      </Button>
-                    </SignInButton>
-                    <SignUpButton mode="modal">
-                      <Button
-                        variant="outline"
-                        className="w-full"
-                        onClick={closeMenu}
-                      >
-                        Sign Up
-                      </Button>
-                    </SignUpButton>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center gap-3">
-                  <UserButton />
-                  <div>
-                    <p className="font-medium">My Account</p>
-                    <p className="text-xs text-muted-foreground">
-                      Manage your profile
-                    </p>
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Navigation Links */}
@@ -224,6 +219,47 @@ export function Header() {
                 })}
               </div>
             </div>
+
+            {/* Mobile Sign Out Button - Only show when signed in */}
+            {isSignedIn && (
+              <div className="border-t p-4">
+                <Button
+                  variant="destructive"
+                  className="w-full"
+                  onClick={handleSignOut}
+                >
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Sign Out
+                </Button>
+              </div>
+            )}
+
+            {/* Mobile Sign In - Only show when not signed in */}
+            {!isSignedIn && (
+              <div className="border-t p-4">
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground text-center mb-2">
+                    Welcome to OG-STORE
+                  </p>
+                  <div className="flex gap-2">
+                    <SignInButton mode="modal">
+                      <Button className="flex-1" onClick={closeMenu}>
+                        Sign In
+                      </Button>
+                    </SignInButton>
+                    <SignUpButton mode="modal">
+                      <Button
+                        variant="outline"
+                        className="flex-1"
+                        onClick={closeMenu}
+                      >
+                        Sign Up
+                      </Button>
+                    </SignUpButton>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </SheetContent>
       </Sheet>

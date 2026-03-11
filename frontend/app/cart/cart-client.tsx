@@ -23,22 +23,41 @@ export function CartClient({ clerkId }: CartClientProps) {
     useCartStore();
   const [loading, setLoading] = useState(true);
   const [updatingItems, setUpdatingItems] = useState<Set<string>>(new Set());
-  const hasFetched = useRef(false); // Add this to prevent double fetch
+  const hasFetched = useRef(false);
+  const fetchAttempted = useRef(false);
+  const mountedRef = useRef(true);
+
+  // Set mounted ref on mount and cleanup on unmount
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   // Fetch cart on mount only once
   useEffect(() => {
-    // Prevent double fetch
-    if (hasFetched.current) return;
+    // Prevent multiple fetch attempts
+    if (hasFetched.current) {
+      return;
+    }
+    if (fetchAttempted.current) {
+      return;
+    }
 
-    let isMounted = true;
-    const controller = new AbortController(); // Add abort controller
+    const controller = new AbortController();
 
     const fetchCart = async () => {
       try {
+        fetchAttempted.current = true;
         setLoading(true);
+
         const cartData = await api.auth.get(`/cart/${clerkId}`);
 
-        if (!isMounted) return;
+        // Check if component is still mounted before updating state
+        if (!mountedRef.current) {
+          return;
+        }
 
         if (cartData.items && cartData.items.length > 0) {
           const formattedItems = cartData.items.map((item: any) => ({
@@ -57,13 +76,29 @@ export function CartClient({ clerkId }: CartClientProps) {
 
         hasFetched.current = true;
       } catch (error: any) {
-        if (error.name === "AbortError") return;
-        if (!isMounted) return;
-        console.error("Failed to fetch cart:", error);
-        toast.error("Failed to load cart");
+        if (error.name === "AbortError") {
+          return;
+        }
+
+        // Check if component is still mounted before updating state
+        if (!mountedRef.current) {
+          return;
+        }
+
+        console.error("❌ Failed to fetch cart:", error);
+
+        if (error.response?.status === 401) {
+          setItems([]);
+          toast.error("Please sign in to view your cart");
+        } else {
+          toast.error("Failed to load cart");
+        }
+
+        hasFetched.current = true;
       } finally {
-        if (isMounted) {
+        if (mountedRef.current) {
           setLoading(false);
+        } else {
         }
       }
     };
@@ -71,16 +106,15 @@ export function CartClient({ clerkId }: CartClientProps) {
     fetchCart();
 
     return () => {
-      isMounted = false;
-      controller.abort(); // Cancel fetch on unmount
+      controller.abort();
     };
-  }, [clerkId, api]);
+  }, [clerkId, api, setItems]);
 
+  // Rest of your component remains the same...
   const handleUpdateQuantity = useCallback(
     async (itemId: string, newQuantity: number) => {
       if (newQuantity < 1) return;
 
-      // Find the item
       const item = items.find((i) => i.id === itemId);
       if (!item) {
         console.error("❌ Item not found:", itemId);
@@ -91,7 +125,6 @@ export function CartClient({ clerkId }: CartClientProps) {
 
       // Optimistically update UI
       updateQuantity(itemId, newQuantity);
-
       setUpdatingItems((prev) => new Set(prev).add(itemId));
 
       try {
@@ -119,11 +152,9 @@ export function CartClient({ clerkId }: CartClientProps) {
 
   const handleRemoveItem = useCallback(
     async (itemId: string) => {
-      // Optimistically remove from UI
       const item = items.find((i) => i.id === itemId);
       if (!item) return;
 
-      // Update local state immediately
       const updatedItems = items.filter((i) => i.id !== itemId);
       setItems(updatedItems);
       setUpdatingItems((prev) => new Set(prev).add(itemId));
@@ -132,8 +163,7 @@ export function CartClient({ clerkId }: CartClientProps) {
         await api.auth.delete(`/cart/${clerkId}/items/${itemId}`);
         toast.success("Item removed from cart", { duration: 1500 });
       } catch (error) {
-        // Revert on error
-        setItems(items); // Restore original items
+        setItems(items);
         console.error("Failed to remove item:", error);
         toast.error("Failed to remove item");
       } finally {
@@ -155,7 +185,6 @@ export function CartClient({ clerkId }: CartClientProps) {
       await api.auth.delete(`/cart/${clerkId}/clear`);
       toast.success("Cart cleared", { duration: 1500 });
     } catch (error) {
-      // Revert on error
       setItems(currentItems);
       console.error("Failed to clear cart:", error);
       toast.error("Failed to clear cart");

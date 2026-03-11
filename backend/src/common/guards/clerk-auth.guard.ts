@@ -22,13 +22,13 @@ export class ClerkAuthGuard implements CanActivate {
     }
 
     const token = authHeader.split(' ')[1];
-    
+
     try {
       const payload = await verifyToken(token, {
         secretKey: process.env.CLERK_SECRET_KEY!,
         authorizedParties: [
-          process.env.BASE_DEV_DOMAIN || 'http://localhost:3000',
-          process.env.BASE_PROD_DOMAIN || 'https://ecommerce-one-sable-77.vercel.app',
+          'http://localhost:3000',
+          'https://ecommerce-one-sable-77.vercel.app',
         ],
         clockSkewInMs: 5000,
       });
@@ -36,8 +36,7 @@ export class ClerkAuthGuard implements CanActivate {
       // Attach Clerk user data to the request for use in controllers/services
       request['user'] = {
         sub: payload.sub,
-        clerkId: payload.sub, // Clerk user ID
-        // Add more if needed: email: payload.email_addresses?.[0]?.email_address,
+        clerkId: payload.sub,
       };
 
       return true;

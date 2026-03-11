@@ -11,14 +11,20 @@ export function CartSync() {
   const { items, setItems, clearCart, localOnly } = useCartStore();
   const api = useApi();
   const initialSyncDoneRef = useRef(false);
+  const syncAttemptedRef = useRef(false);
 
   // Sync local cart to backend when user logs in
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !user?.id) return;
+
+    // Don't retry if we already attempted sync
+    if (syncAttemptedRef.current) return;
     if (initialSyncDoneRef.current) return;
 
     const syncCart = async () => {
       try {
+        syncAttemptedRef.current = true;
+
         // First sync user to backend
         const syncedUser = await api.auth.post("/users/sync", {
           clerkId: user.id,
@@ -80,20 +86,27 @@ export function CartSync() {
         }
 
         initialSyncDoneRef.current = true;
-      } catch (error) {
+      } catch (error: any) {
         console.error("❌ Cart sync error:", error);
+
+        // If it's a 401, mark as attempted but not successful
+        // This prevents infinite retry loops
+        if (error.response?.status === 401) {
+          initialSyncDoneRef.current = true;
+        }
       }
     };
 
     syncCart();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded, isSignedIn, user?.id, api]); // Remove 'items' from dependencies
+  }, [isLoaded, isSignedIn, user?.id]);
 
   // Clear local cart when user logs out
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
       clearCart();
       initialSyncDoneRef.current = false;
+      syncAttemptedRef.current = false;
     }
   }, [isLoaded, isSignedIn, clearCart]);
 
