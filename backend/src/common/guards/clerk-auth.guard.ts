@@ -28,7 +28,7 @@ export class ClerkAuthGuard implements CanActivate {
         secretKey: process.env.CLERK_SECRET_KEY!,
         authorizedParties: [
           process.env.BASE_DEV_DOMAIN || 'http://localhost:3000',
-          process.env.BASE_PROD_DOMAIN || 'http://localhost:3000',
+          process.env.BASE_PROD_DOMAIN || 'https://ecommerce-one-sable-77.vercel.app',
         ],
         clockSkewInMs: 5000,
       });
