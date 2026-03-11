@@ -1,10 +1,9 @@
-'use client';
-
 import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import express, { Request, Response } from 'express';
 import { AppModule } from './app.module.js';
 import { ValidationPipe } from '@nestjs/common';
+import { CorsOptionsDelegate } from '@nestjs/common/interfaces/external/cors-options.interface.js';
 
 const server = express();
 let cachedApp: any;
@@ -15,42 +14,46 @@ async function createServer() {
   if (!cachedApp) {
     const app = await NestFactory.create(AppModule, new ExpressAdapter(server));
 
-    // Dynamic CORS for serverless
-    app.enableCors({
-      origin: (origin, callback) => {
-        if (!origin) return callback(null, true); // allow curl, Postman, mobile apps
+    const corsOptions: CorsOptionsDelegate<Request> = (req, callback) => {
+      const origin = req.header('Origin');
 
-        const allowedOrigins = [
-          'https://ecommerce-63rnpimr2-johnadebas-projects.vercel.app',
-          'https://ecommerce-bbjf-5uifhjbxt-johnadebas-projects.vercel.app',
-          'http://localhost:3000', // local dev
-        ];
+      let allowed = false;
 
-        if (allowedOrigins.includes(origin)) {
-          callback(null, true);
-        } else {
-          callback(new Error('Not allowed by CORS'));
-        }
-      },
-      credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: [
-        'Content-Type',
-        'Authorization',
-        'X-Requested-With',
-        'Accept',
-      ],
-    });
+      if (!origin) {
+        allowed = true; // Postman, curl, server-to-server
+      }
 
-    // Handle preflight requests explicitly
+      if (origin?.includes('localhost')) {
+        allowed = true;
+      }
+
+      if (origin?.endsWith('.vercel.app')) {
+        allowed = true;
+      }
+
+      const options = {
+        origin: allowed ? origin : false,
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+        allowedHeaders: [
+          'Content-Type',
+          'Authorization',
+          'X-Requested-With',
+          'Accept',
+        ],
+      };
+
+      callback(null, options);
+    };
+
+    app.enableCors(corsOptions);
+
     server.options('*', (_, res) => {
       res.sendStatus(200);
     });
 
-    // Global API prefix
     app.setGlobalPrefix('api');
 
-    // Validation pipe
     app.useGlobalPipes(
       new ValidationPipe({
         transform: true,
@@ -77,11 +80,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.enableCors({
-    origin: [
-      'http://localhost:3000',
-      'https://ecommerce-63rnpimr2-johnadebas-projects.vercel.app',
-      'https://ecommerce-bbjf-5uifhjbxt-johnadebas-projects.vercel.app',
-    ],
+    origin: true,
     credentials: true,
   });
 
