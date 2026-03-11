@@ -27,10 +27,11 @@ export function CartClient({ clerkId }: CartClientProps) {
 
   // Fetch cart on mount only once
   useEffect(() => {
-    // Prevent double fetch in strict mode
+    // Prevent double fetch
     if (hasFetched.current) return;
 
     let isMounted = true;
+    const controller = new AbortController(); // Add abort controller
 
     const fetchCart = async () => {
       try {
@@ -55,7 +56,8 @@ export function CartClient({ clerkId }: CartClientProps) {
         }
 
         hasFetched.current = true;
-      } catch (error) {
+      } catch (error: any) {
+        if (error.name === "AbortError") return;
         if (!isMounted) return;
         console.error("Failed to fetch cart:", error);
         toast.error("Failed to load cart");
@@ -70,8 +72,9 @@ export function CartClient({ clerkId }: CartClientProps) {
 
     return () => {
       isMounted = false;
+      controller.abort(); // Cancel fetch on unmount
     };
-  }, [clerkId, api, setItems]); // Remove setItems from dependencies if it causes issues
+  }, [clerkId, api]);
 
   const handleUpdateQuantity = useCallback(
     async (itemId: string, newQuantity: number) => {
@@ -213,7 +216,7 @@ export function CartClient({ clerkId }: CartClientProps) {
                         src={item.image}
                         alt={item.name}
                         fill
-                        priority
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                         className="object-cover"
                       />
                     </div>

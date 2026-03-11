@@ -25,10 +25,14 @@ export function CartSync() {
           email: user.primaryEmailAddress?.emailAddress,
           name: user.fullName,
         });
+
+        // Get current items from store at sync time
+        const currentItems = items;
+
         // If there are local items, push them to backend
-        if (items.length > 0) {
+        if (currentItems.length > 0 && localOnly) {
           // Add each local item to backend cart
-          for (const item of items) {
+          for (const item of currentItems) {
             try {
               await api.auth.post(`/cart/${user.id}/items`, {
                 productId: item.productId,
@@ -82,7 +86,8 @@ export function CartSync() {
     };
 
     syncCart();
-  }, [isLoaded, isSignedIn, user?.id, items, setItems, api]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, isSignedIn, user?.id, api]); // Remove 'items' from dependencies
 
   // Clear local cart when user logs out
   useEffect(() => {
