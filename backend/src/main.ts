@@ -41,8 +41,14 @@ export const createNestServer = async (expressInstance: Application) => {
   );
 
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: [
+      process.env.BASE_DEV_DOMAIN || 'http://localhost:3000',
+      process.env.BASE_PROD_DOMAIN ||
+        'https://ecommerce-one-sable-77.vercel.app',
+    ],
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   });
 
   app.setGlobalPrefix('api');
