@@ -27,9 +27,7 @@ export class ClerkAuthGuard implements CanActivate {
       const payload = await verifyToken(token, {
         secretKey: process.env.CLERK_SECRET_KEY!,
       });
-
-      console.log('✅ Token verified for user:', payload.sub);
-
+      
       // Attach Clerk user info to request
       request['user'] = {
         sub: payload.sub,
