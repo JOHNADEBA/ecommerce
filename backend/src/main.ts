@@ -3,7 +3,6 @@ import { ExpressAdapter } from '@nestjs/platform-express';
 import express, { Request, Response } from 'express';
 import { AppModule } from './app.module.js';
 import { ValidationPipe } from '@nestjs/common';
-import { CorsOptionsDelegate } from '@nestjs/common/interfaces/external/cors-options.interface.js';
 
 const server = express();
 let cachedApp: any;
@@ -14,28 +13,38 @@ async function createServer() {
   if (!cachedApp) {
     const app = await NestFactory.create(AppModule, new ExpressAdapter(server));
 
-    const allowedOrigins = [
-      process.env.BASE_DEV_DOMAIN,
-      process.env.BASE_PROD_DOMAIN,
-      'http://localhost:3000',
-    ].filter((v): v is string => Boolean(v));
+    // ✅ SIMPLE CORS CONFIGURATION - NO CALLBACK ERRORS
+    app.enableCors({
+      origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps, curl, etc.)
+        if (!origin) {
+          return callback(null, true);
+        }
 
-    const corsOptions: CorsOptionsDelegate<Request> = (req, callback) => {
-      const origin = req.header('Origin');
+        // Check if origin is allowed
+        const allowedOrigins = [
+          process.env.BASE_DEV_DOMAIN,
+          process.env.BASE_PROD_DOMAIN,
+          'http://localhost:3000',
+        ].filter(Boolean);
 
-      if (!origin) {
-        return callback(null, { origin: true, credentials: true });
-      }
+        if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+          return callback(null, true);
+        }
 
-      if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
-        return callback(null, { origin: true, credentials: true });
-      }
-
-      console.log('❌ CORS blocked:', origin);
-      callback(new Error('Not allowed by CORS'), { origin: false });
-    };
-
-    app.enableCors(corsOptions);
+        // Block all other origins - but don't throw an error!
+        console.log('❌ CORS blocked:', origin);
+        return callback(null, false);
+      },
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'X-Requested-With',
+        'Accept',
+      ],
+    });
 
     app.setGlobalPrefix('api');
 
@@ -65,28 +74,21 @@ export default async function handler(req: Request, res: Response) {
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  const allowedOrigins = [
-    process.env.BASE_DEV_DOMAIN,
-    process.env.BASE_PROD_DOMAIN,
-    'http://localhost:3000',
-  ].filter((v): v is string => Boolean(v));
-
-  const corsOptions: CorsOptionsDelegate<Request> = (req, callback) => {
-    const origin = req.header('Origin');
-
-    if (!origin) {
-      return callback(null, { origin: true, credentials: true });
-    }
-
-    if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
-      return callback(null, { origin: true, credentials: true });
-    }
-
-    console.log('❌ CORS blocked:', origin);
-    callback(new Error('Not allowed by CORS'), { origin: false });
-  };
-
-  app.enableCors(corsOptions);
+  app.enableCors({
+    origin: [
+      'http://localhost:3000',
+      process.env.BASE_DEV_DOMAIN,
+      process.env.BASE_PROD_DOMAIN,
+    ].filter(Boolean),
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'Accept',
+    ],
+  });
 
   app.setGlobalPrefix('api');
 
