@@ -23,12 +23,12 @@ export class ClerkAuthGuard implements CanActivate {
     const token = authHeader.split(' ')[1];
 
     try {
-      // 🔥 FIX: Skip authorized parties check entirely
+      // ✅ BEST: Verify the JWT locally using Clerk's secret
       const payload = await verifyToken(token, {
         secretKey: process.env.CLERK_SECRET_KEY!,
-        // No authorizedParties array - Clerk will skip this check
-        clockSkewInMs: 5000,
       });
+
+      console.log('✅ Token verified for user:', payload.sub);
 
       // Attach Clerk user info to request
       request['user'] = {

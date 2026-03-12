@@ -86,7 +86,7 @@ export function ProductCard({ product }: ProductCardProps) {
       >
         <div className="aspect-square relative w-full">
           <Image
-            src={product.images[0] || "/placeholder.jpg"}
+            src={product.images[0] || "/placeholder.svg"}
             alt={product.name}
             fill
             priority

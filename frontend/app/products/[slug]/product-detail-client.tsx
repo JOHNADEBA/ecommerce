@@ -41,22 +41,23 @@ export function ProductDetailClient({
     items,
     addItem: addToLocalCart,
     updateQuantity: updateStoreQuantity,
+    setItems, // ✅ Add this from the store
   } = useCartStore();
   const addToCartMutation = useAddToCart();
   const api = useApi();
 
   const allImages =
-    product.images.length > 0 ? product.images : ["/placeholder.jpg"];
+    product.images.length > 0 ? product.images : ["/placeholder.svg"];
 
   // Check if product is already in cart and get its quantity
   useEffect(() => {
     const existingItem = items.find((item) => item.productId === product.id);
     if (existingItem) {
       setCartItem({ quantity: existingItem.quantity });
-      setQuantity(existingItem.quantity); // Set initial quantity to cart quantity
+      setQuantity(existingItem.quantity);
     } else {
       setCartItem(null);
-      setQuantity(1); // Reset to 1 if not in cart
+      setQuantity(1);
     }
   }, [items, product.id]);
 
@@ -79,20 +80,45 @@ export function ProductDetailClient({
           },
         },
         {
-          onSuccess: () => {
-            // Update local store
-            addToLocalCart({
-              productId: product.id,
-              name: product.name,
-              price: product.price,
-              quantity,
-              image: product.images[0] || "/placeholder.jpg",
-              maxStock: product.inventory,
-            });
+          onSuccess: async () => {
+            try {
+              // 🔥 IMPORTANT: Fetch the updated cart to get real backend IDs
+              const cartData = await api.auth.get(`/cart/${user.id}`);
 
-            toast.success(`${quantity} × ${product.name} added to cart`, {
-              description: "Check your cart to complete checkout",
-            });
+              if (cartData.items && cartData.items.length > 0) {
+                // Format items with REAL backend IDs
+                const formattedItems = cartData.items.map((item: any) => ({
+                  id: item.id, // This is the REAL database ID
+                  productId: item.product.id,
+                  name: item.product.name,
+                  price: item.product.price,
+                  quantity: item.quantity,
+                  image: item.product.images[0] || "/placeholder.svg",
+                  maxStock: item.product.inventory,
+                }));
+
+                // Update the store with real backend IDs
+                setItems(formattedItems);
+              }
+
+              toast.success(`${quantity} × ${product.name} added to cart`, {
+                description: "Check your cart to complete checkout",
+              });
+            } catch (error) {
+              console.error("Failed to fetch updated cart:", error);
+              // Fallback to local update if fetch fails
+              addToLocalCart({
+                productId: product.id,
+                name: product.name,
+                price: product.price,
+                quantity,
+                image: product.images[0] || "/placeholder.svg",
+                maxStock: product.inventory,
+              });
+              toast.success(`${quantity} × ${product.name} added to cart`, {
+                description: "Check your cart to complete checkout",
+              });
+            }
           },
           onError: () => {
             toast.error("Failed to add to cart", {
@@ -102,13 +128,13 @@ export function ProductDetailClient({
         },
       );
     } else {
-      // For guest users, add to local store
+      // For guest users, add to local store with temporary ID
       addToLocalCart({
         productId: product.id,
         name: product.name,
         price: product.price,
         quantity,
-        image: product.images[0] || "/placeholder.jpg",
+        image: product.images[0] || "/placeholder.svg",
         maxStock: product.inventory,
       });
 
@@ -129,12 +155,19 @@ export function ProductDetailClient({
     }
 
     if (isSignedIn && user?.id) {
-      // Find the cart item ID
+      // Find the cart item
       const existingItem = items.find((item) => item.productId === product.id);
       if (!existingItem) return;
 
+      // Check if this is a local temporary ID (starts with "local-")
+      if (existingItem.id.startsWith("local-")) {
+        // This shouldn't happen for signed-in users, but just in case
+        console.log("Found local ID, converting to backend...");
+        await handleAddToCart();
+        return;
+      }
+
       try {
-        // Use PATCH to update to the exact quantity
         await api.auth.patch(`/cart/${user.id}/items/${existingItem.id}`, {
           quantity: quantity,
         });
@@ -142,19 +175,44 @@ export function ProductDetailClient({
         // Update local store
         updateStoreQuantity(existingItem.id, quantity);
 
+        // Update cartItem state
+        setCartItem({ quantity });
+
         toast.success(`Cart updated to ${quantity} items`, {
           description: "Your cart has been updated",
         });
       } catch (error: any) {
         console.error("Failed to update cart:", error);
+
+        // If item not found (404), it might have been deleted - refresh the cart
+        if (error.response?.status === 404) {
+          try {
+            const cartData = await api.auth.get(`/cart/${user.id}`);
+            if (cartData.items && cartData.items.length > 0) {
+              const formattedItems = cartData.items.map((item: any) => ({
+                id: item.id,
+                productId: item.product.id,
+                name: item.product.name,
+                price: item.product.price,
+                quantity: item.quantity,
+                image: item.product.images[0] || "/placeholder.svg",
+                maxStock: item.product.inventory,
+              }));
+              setItems(formattedItems);
+            }
+          } catch (refreshError) {
+            console.error("Failed to refresh cart:", refreshError);
+          }
+        }
+
         toast.error(error.response?.data?.message || "Failed to update cart");
       }
     } else {
-      // For guest users, update local store directly
+      // Guest user - use local store
       const existingItem = items.find((item) => item.productId === product.id);
       if (existingItem) {
         updateStoreQuantity(existingItem.id, quantity);
-
+        setCartItem({ quantity });
         toast.info(`Cart updated to ${quantity} items`, {
           description: "Sign in to save it permanently",
         });
@@ -274,7 +332,6 @@ export function ProductDetailClient({
                     src={image}
                     alt={`${product.name} - Image ${index + 1}`}
                     fill
-                    priority
                     className="object-cover"
                     sizes="(max-width: 768px) 20vw, 10vw"
                   />
@@ -297,7 +354,7 @@ export function ProductDetailClient({
             <h1 className="text-3xl lg:text-4xl font-bold">{product.name}</h1>
           </div>
 
-          {/* Rating (Placeholder) */}
+          {/* Rating */}
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1">
               {[1, 2, 3, 4, 5].map((star) => (
