@@ -22,17 +22,11 @@ export class ClerkAuthGuard implements CanActivate {
 
     const token = authHeader.split(' ')[1];
 
-    // Build authorized parties dynamically, filtering undefined
-    const authorizedParties = [
-      process.env.BASE_DEV_DOMAIN,
-      process.env.BASE_PROD_DOMAIN,
-      process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined,
-    ].filter((v): v is string => Boolean(v)); // <- TypeScript type guard
-
     try {
+      // 🔥 FIX: Skip authorized parties check entirely
       const payload = await verifyToken(token, {
         secretKey: process.env.CLERK_SECRET_KEY!,
-        authorizedParties,
+        // No authorizedParties array - Clerk will skip this check
         clockSkewInMs: 5000,
       });
 

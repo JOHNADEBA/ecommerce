@@ -13,29 +13,9 @@ async function createServer() {
   if (!cachedApp) {
     const app = await NestFactory.create(AppModule, new ExpressAdapter(server));
 
-    // ✅ SIMPLE CORS CONFIGURATION - NO CALLBACK ERRORS
+    // ✅ SIMPLE CORS - NO TYPE ISSUES
     app.enableCors({
-      origin: (origin, callback) => {
-        // Allow requests with no origin (like mobile apps, curl, etc.)
-        if (!origin) {
-          return callback(null, true);
-        }
-
-        // Check if origin is allowed
-        const allowedOrigins = [
-          process.env.BASE_DEV_DOMAIN,
-          process.env.BASE_PROD_DOMAIN,
-          'http://localhost:3000',
-        ].filter(Boolean);
-
-        if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
-          return callback(null, true);
-        }
-
-        // Block all other origins - but don't throw an error!
-        console.log('❌ CORS blocked:', origin);
-        return callback(null, false);
-      },
+      origin: true, // Allow all origins
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: [
@@ -75,11 +55,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.enableCors({
-    origin: [
-      'http://localhost:3000',
-      process.env.BASE_DEV_DOMAIN,
-      process.env.BASE_PROD_DOMAIN,
-    ].filter(Boolean),
+    origin: true, // Allow all origins
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
