@@ -3,6 +3,7 @@ import { ExpressAdapter } from '@nestjs/platform-express';
 import express, { Request, Response } from 'express';
 import { AppModule } from './app.module.js';
 import { ValidationPipe } from '@nestjs/common';
+import { CorsOptionsDelegate } from '@nestjs/common/interfaces/external/cors-options.interface.js';
 
 const server = express();
 let cachedApp: any;
@@ -13,17 +14,28 @@ async function createServer() {
   if (!cachedApp) {
     const app = await NestFactory.create(AppModule, new ExpressAdapter(server));
 
-    app.enableCors({
-      origin: true, // reflect request origin automatically
-      credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: [
-        'Content-Type',
-        'Authorization',
-        'X-Requested-With',
-        'Accept',
-      ],
-    });
+    const allowedOrigins = [
+      process.env.BASE_DEV_DOMAIN,
+      process.env.BASE_PROD_DOMAIN,
+      'http://localhost:3000',
+    ].filter((v): v is string => Boolean(v));
+
+    const corsOptions: CorsOptionsDelegate<Request> = (req, callback) => {
+      const origin = req.header('Origin');
+
+      if (!origin) {
+        return callback(null, { origin: true, credentials: true });
+      }
+
+      if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+        return callback(null, { origin: true, credentials: true });
+      }
+
+      console.log('❌ CORS blocked:', origin);
+      callback(new Error('Not allowed by CORS'), { origin: false });
+    };
+
+    app.enableCors(corsOptions);
 
     app.setGlobalPrefix('api');
 
@@ -53,10 +65,28 @@ export default async function handler(req: Request, res: Response) {
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  app.enableCors({
-    origin: true,
-    credentials: true,
-  });
+  const allowedOrigins = [
+    process.env.BASE_DEV_DOMAIN,
+    process.env.BASE_PROD_DOMAIN,
+    'http://localhost:3000',
+  ].filter((v): v is string => Boolean(v));
+
+  const corsOptions: CorsOptionsDelegate<Request> = (req, callback) => {
+    const origin = req.header('Origin');
+
+    if (!origin) {
+      return callback(null, { origin: true, credentials: true });
+    }
+
+    if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+      return callback(null, { origin: true, credentials: true });
+    }
+
+    console.log('❌ CORS blocked:', origin);
+    callback(new Error('Not allowed by CORS'), { origin: false });
+  };
+
+  app.enableCors(corsOptions);
 
   app.setGlobalPrefix('api');
 
